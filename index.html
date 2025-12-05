@@ -41,7 +41,7 @@
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js';
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, setDoc, serverTimestamp, query, orderBy, getDoc } from 'https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js';
         import { 
-            Plus, Calendar, Users, DollarSign, CheckCircle, Trash2, ChevronLeft, Search, Copy, Clock, Edit2, LogOut, KeyRound, MapPin, MessageSquare, Calculator, X, Percent, Database, Save, AlertCircle
+            Plus, Calendar, Users, DollarSign, CheckCircle, Trash2, ChevronLeft, Search, Copy, Clock, Edit2, LogOut, KeyRound, MapPin, MessageSquare, Calculator, X, Percent, Database, Save, AlertCircle, Download
         } from 'https://esm.sh/lucide-react@0.330.0?dev&external=react';
 
         // ---------------------------------------------------------
@@ -282,6 +282,41 @@
                 const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
                 try { document.execCommand('copy'); alert("Lista copiada"); } catch (e) {} document.body.removeChild(textArea);
             };
+            
+            const downloadList = () => {
+                const lines = [
+                    `EVENTO: ${event.title}`,
+                    `FECHA: ${event.date} - ${event.time}`,
+                    `SALA: ${event.venue || 'No especificada'}`,
+                    `-------------------------------------------`,
+                    `LISTA DE RESERVAS:`,
+                    ``
+                ];
+
+                reservations.forEach((r, i) => {
+                    const guestsText = r.guests > 0 ? ` (+${r.guests})` : '';
+                    const noteText = r.note ? `  |  Nota: ${r.note}` : '';
+                    const checkText = r.checkIn ? ' [EN SALA]' : '';
+                    lines.push(`${i + 1}. ${r.name}${guestsText}${checkText}${noteText}`);
+                });
+
+                lines.push(``);
+                lines.push(`-------------------------------------------`);
+                lines.push(`TOTAL PAX: ${stats.totalPax}`);
+                lines.push(`TOTAL EN SALA: ${stats.checkedInPax}`);
+
+                const text = lines.join('\n');
+                const blob = new Blob([text], { type: 'text/plain' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `Lista_${event.title.replace(/\s+/g, '_')}_${event.date}.txt`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            };
+
             const capacity = parseInt(event.capacity) || 0;
             const occupancy = capacity > 0 ? Math.min(100, (stats.totalPax / capacity) * 100) : 0;
             const occupancyColor = occupancy > 90 ? 'bg-red-500' : occupancy > 70 ? 'bg-amber-500' : 'bg-emerald-500';
@@ -300,7 +335,8 @@
                         </div>
                         <div className="flex gap-2 mb-4">
                             <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Buscar nombre..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-                            <button onClick={copyList} className="bg-white text-slate-600 px-3 rounded-lg border border-slate-200 hover:bg-slate-50"><Copy size={20} /></button>
+                            <button onClick={downloadList} className="bg-white text-slate-600 px-3 rounded-lg border border-slate-200 hover:bg-slate-50" title="Descargar Lista"><Download size={20} /></button>
+                            <button onClick={copyList} className="bg-white text-slate-600 px-3 rounded-lg border border-slate-200 hover:bg-slate-50" title="Copiar al portapapeles"><Copy size={20} /></button>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-20">
                             {filteredReservations.length === 0 ? <div className="p-8 text-center text-slate-500">{searchTerm ? 'No encontrado.' : 'Sin reservas.'}</div> : <ul className="divide-y divide-slate-100">{filteredReservations.map(res => <ReservationRow key={res.id} reservation={res} eventType={event.type} onUpdate={onUpdate} onDelete={onDelete} />)}</ul>}
