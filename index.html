@@ -45,19 +45,19 @@
         } from 'https://esm.sh/lucide-react@0.330.0?dev&external=react';
 
         // ---------------------------------------------------------
-        // --- PEGA TU CONFIGURACIÓN DE FIREBASE AQUÍ (OBLIGATORIO) ---
-        // Copia los valores de tu consola de Firebase y pégalos entre las comillas.
-        // Si no haces esto, la app pedirá configuración en cada dispositivo nuevo.
-
+        // --- CONFIGURACIÓN DE FIREBASE (YA CARGADA) ---
+        // He insertado tus claves aquí directamente para que funcione al instante.
+        
         const firebaseConfig = {
-           apiKey: "AIzaSyC4SX0foYzOQ58H6-9FSbVVhwTMNDP2Qb8",
-           authDomain: "reservasteatro-acf26.firebaseapp.com",
-           projectId: "reservasteatro-acf26",
-           storageBucket: "reservasteatro-acf26.firebasestorage.app",
-           messagingSenderId: "687083995414",
-           appId: "1:687083995414:web:6eeb32ffbb222cbd3c1037",
-           measurementId: "G-CC8TPY7CFB"
+            apiKey: "AIzaSyC4SX0foYzOQ58H6-9FSbVVhwTMNDP2Qb8",
+            authDomain: "reservasteatro-acf26.firebaseapp.com",
+            projectId: "reservasteatro-acf26",
+            storageBucket: "reservasteatro-acf26.firebasestorage.app",
+            messagingSenderId: "687083995414",
+            appId: "1:687083995414:web:6eeb32ffbb222cbd3c1037",
+            measurementId: "G-CC8TPY7CFB"
         };
+        
         // ---------------------------------------------------------
 
         // --- INICIALIZACIÓN ---
@@ -67,25 +67,9 @@
         let configError = null;
 
         try {
-            let config = null;
-            
-            // 1. Prioridad: Configuración Manual (Hardcoded para Netlify)
-            if (manualConfig.apiKey && manualConfig.apiKey !== "") {
-                config = manualConfig;
-            } 
-            // 2. Fallback: Entorno de chat (para que funcione aquí mismo en el preview)
-            else if (typeof __firebase_config !== 'undefined') {
-                config = JSON.parse(__firebase_config);
-                if (typeof __app_id !== 'undefined') appId = __app_id;
-            }
-            // 3. Fallback: LocalStorage (por si acaso alguien lo configuró manualmente antes)
-            else {
-                const localConfig = localStorage.getItem('teatro_firebase_config');
-                if (localConfig) config = JSON.parse(localConfig);
-            }
-
-            if (config) {
-                app = initializeApp(config);
+            // Inicializamos directamente con la configuración cargada arriba
+            if (firebaseConfig && firebaseConfig.apiKey) {
+                app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
                 db = getFirestore(app);
                 isConfigured = true;
@@ -95,52 +79,21 @@
             configError = e.message;
         }
 
-        // --- PANTALLA DE ERROR / SETUP (Solo si no hay config manual) ---
+        // --- PANTALLA DE ERROR (Solo si fallara algo grave) ---
         function SetupScreen() {
-            const [configJson, setConfigJson] = useState('');
-            const [error, setError] = useState('');
-
-            const handleSave = () => {
-                try {
-                    let cleanJson = configJson.trim();
-                    if (cleanJson.includes('=')) {
-                        const start = cleanJson.indexOf('{');
-                        const end = cleanJson.lastIndexOf('}');
-                        if (start !== -1 && end !== -1) cleanJson = cleanJson.substring(start, end + 1);
-                    }
-                    const parsed = new Function("return " + cleanJson)();
-                    if (!parsed.apiKey) throw new Error("Falta apiKey");
-                    
-                    localStorage.setItem('teatro_firebase_config', JSON.stringify(parsed));
-                    window.location.reload(); 
-                } catch (e) {
-                    setError("Error: " + e.message);
-                }
-            };
-
             return (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
-                    <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-lg">
-                        <div className="text-center mb-6">
-                            <div className="bg-red-100 p-4 rounded-full mb-4 inline-block">
-                                <AlertCircle size={40} className="text-red-600" />
-                            </div>
-                            <h1 className="text-2xl font-bold text-slate-800">Falta Configuración</h1>
-                            <p className="text-slate-500 mt-2 text-sm">
-                                Para que esta app funcione para todos, debes editar el archivo <code>index.html</code> antes de subirlo y pegar tus claves de Firebase en la sección <code>manualConfig</code>.
-                            </p>
+                    <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-lg text-center">
+                        <div className="bg-red-100 p-4 rounded-full mb-4 inline-block">
+                            <AlertCircle size={40} className="text-red-600" />
                         </div>
-                        
-                        <div className="border-t pt-4">
-                            <p className="text-xs font-bold text-slate-400 uppercase mb-2">Solución rápida (Solo este dispositivo)</p>
-                            <textarea 
-                                className="w-full h-24 border border-slate-300 rounded-xl p-3 font-mono text-xs outline-none mb-2"
-                                placeholder='Pega firebaseConfig aquí...'
-                                value={configJson}
-                                onChange={e => setConfigJson(e.target.value)}
-                            />
-                            <button onClick={handleSave} className="w-full bg-slate-800 text-white py-2 rounded-lg font-bold hover:bg-slate-700">Guardar Temporalmente</button>
-                        </div>
+                        <h1 className="text-2xl font-bold text-slate-800">Error de Conexión</h1>
+                        <p className="text-slate-500 mt-2">
+                            Hubo un problema al conectar con la base de datos.
+                        </p>
+                        <p className="text-xs text-red-500 mt-4 font-mono bg-red-50 p-2 rounded">
+                            {configError || "Verifica la consola para más detalles."}
+                        </p>
                     </div>
                 </div>
             );
@@ -381,6 +334,7 @@
                             </div>
                         )}
                     </div>
+                    {/* MODAL FUERA DEL CONTENEDOR ANIMADO */}
                     {showModal && <CreateEventModal onClose={() => setShowModal(false)} onCreate={onCreate} />}
                 </>
             );
@@ -460,6 +414,7 @@
                             <Plus size={28} />
                         </button>
                     </div>
+                    {/* MODAL FUERA DEL CONTENEDOR ANIMADO */}
                     {showAddModal && <AddReservationModal eventType={event.type} onClose={() => setShowAddModal(false)} onAdd={onAdd} />}
                 </>
             );
