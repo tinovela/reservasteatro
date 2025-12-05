@@ -45,11 +45,10 @@
         } from 'https://esm.sh/lucide-react@0.330.0?dev&external=react';
 
         // ---------------------------------------------------------
-        // --- CONFIGURACIÓN DE FIREBASE (YA CARGADA) ---
-        // He insertado tus claves aquí directamente para que funcione al instante.
-        
+        // --- CONFIGURACIÓN DE FIREBASE (CORREGIDA) ---
+        // Se corrigió el caracter 'O' por '0' en la API Key
         const firebaseConfig = {
-            apiKey: "AIzaSyC4SX0foYzOQ58H6-9FSbVVhwTMNDP2Qb8",
+            apiKey: "AIzaSyC4SX0foYz0Q58H6-9FSbVVhwTMNDP2Qb8",
             authDomain: "reservasteatro-acf26.firebaseapp.com",
             projectId: "reservasteatro-acf26",
             storageBucket: "reservasteatro-acf26.firebasestorage.app",
@@ -57,7 +56,6 @@
             appId: "1:687083995414:web:6eeb32ffbb222cbd3c1037",
             measurementId: "G-CC8TPY7CFB"
         };
-        
         // ---------------------------------------------------------
 
         // --- INICIALIZACIÓN ---
@@ -67,7 +65,6 @@
         let configError = null;
 
         try {
-            // Inicializamos directamente con la configuración cargada arriba
             if (firebaseConfig && firebaseConfig.apiKey) {
                 app = initializeApp(firebaseConfig);
                 auth = getAuth(app);
@@ -79,7 +76,7 @@
             configError = e.message;
         }
 
-        // --- PANTALLA DE ERROR (Solo si fallara algo grave) ---
+        // --- PANTALLA DE ERROR ---
         function SetupScreen() {
             return (
                 <div className="min-h-screen flex items-center justify-center bg-slate-900 p-4">
@@ -88,18 +85,14 @@
                             <AlertCircle size={40} className="text-red-600" />
                         </div>
                         <h1 className="text-2xl font-bold text-slate-800">Error de Conexión</h1>
-                        <p className="text-slate-500 mt-2">
-                            Hubo un problema al conectar con la base de datos.
-                        </p>
-                        <p className="text-xs text-red-500 mt-4 font-mono bg-red-50 p-2 rounded">
-                            {configError || "Verifica la consola para más detalles."}
-                        </p>
+                        <p className="text-slate-500 mt-2">Hubo un problema al conectar con la base de datos.</p>
+                        <p className="text-xs text-red-500 mt-4 font-mono bg-red-50 p-2 rounded">{configError}</p>
                     </div>
                 </div>
             );
         }
 
-        // --- COMPONENTE LOGIN EQUIPO ---
+        // --- LOGIN ---
         function TeamLogin({ onJoin }) {
             const [code, setCode] = useState('');
             const handleSubmit = (e) => {
@@ -112,9 +105,7 @@
                 <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-indigo-600 to-purple-700 p-4">
                     <div className="bg-white rounded-2xl p-8 shadow-2xl w-full max-w-md animate-fade-in">
                         <div className="text-center mb-8">
-                            <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <KeyRound className="text-indigo-600" size={32} />
-                            </div>
+                            <div className="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"><KeyRound className="text-indigo-600" size={32} /></div>
                             <h1 className="text-2xl font-bold text-slate-800">Acceso al Teatro</h1>
                             <p className="text-slate-500 mt-2">Ingresa el código de tu equipo.</p>
                         </div>
@@ -127,7 +118,7 @@
             );
         }
 
-        // --- COMPONENTE PRINCIPAL ---
+        // --- APP ---
         function App() {
             if (!isConfigured) return <SetupScreen />;
 
@@ -139,23 +130,23 @@
             const [selectedEventId, setSelectedEventId] = useState(null);
             const [loading, setLoading] = useState(true);
 
-            // Auth
             useEffect(() => {
                 const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
+                    try { 
+                        await signInAnonymously(auth); 
+                    } 
+                    catch (error) { 
+                        console.error("Error Auth:", error); 
+                        if(error.code === 'auth/operation-not-allowed') {
+                            alert("¡Falta activar 'Anónimo' en Firebase Authentication!");
                         }
-                    } catch (error) { console.error("Error Auth:", error); }
+                    }
                 };
                 initAuth();
                 const unsubscribe = onAuthStateChanged(auth, (u) => { setUser(u); setLoading(false); });
                 return () => unsubscribe();
             }, []);
 
-            // Data Sync
             useEffect(() => {
                 if (!user || !teamId) return;
                 const eventsCollectionName = `events_${teamId}`;
@@ -165,6 +156,9 @@
                     const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     data.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
                     setEvents(data);
+                }, (error) => {
+                    console.error(error);
+                    if (error.code === 'permission-denied') alert("Permiso denegado: Revisa las Reglas en Firebase Console.");
                 });
 
                 const unsubReservations = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', reservationsCollectionName), (snapshot) => {
@@ -175,7 +169,6 @@
                 return () => { unsubEvents(); unsubReservations(); };
             }, [user, teamId]);
 
-            // Memoized Calculations
             const currentEventReservations = useMemo(() => {
                 if (!selectedEventId) return [];
                 let list = reservations.filter(r => r.eventId === selectedEventId);
@@ -195,36 +188,45 @@
             }, [currentEventReservations]);
 
             const currentEvent = events.find(e => e.id === selectedEventId);
-
-            // Actions
             const joinTeam = (code) => { localStorage.setItem('teatro_team_id', code); setTeamId(code); };
             const leaveTeam = () => { if(confirm("¿Salir del equipo?")) { localStorage.removeItem('teatro_team_id'); setTeamId(null); setEvents([]); setReservations([]); setView('events'); } };
             
-            // DB Operations
+            // DB Operations con Manejo de Errores
             const handleCreateEvent = async (data) => {
                 if (!user || !teamId) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', `events_${teamId}`), { ...data, createdAt: serverTimestamp() });
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', `events_${teamId}`), { ...data, createdAt: serverTimestamp() });
+                } catch (e) { alert("Error al crear evento: " + e.message); }
             };
             const handleDeleteEvent = async (id) => {
                 if (!confirm("¿Borrar evento?")) return;
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `events_${teamId}`, id));
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `events_${teamId}`, id));
+                } catch (e) { alert("Error al borrar: " + e.message); }
             };
             const handleAddReservation = async (data) => {
                 if (!user || !teamId || !selectedEventId) return;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', `reservations_${teamId}`), { ...data, eventId: selectedEventId, checkIn: false, createdAt: serverTimestamp() });
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', `reservations_${teamId}`), { ...data, eventId: selectedEventId, checkIn: false, createdAt: serverTimestamp() });
+                } catch (e) { alert("Error al reservar: " + e.message); }
             };
             const handleUpdateReservation = async (id, data) => {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', `reservations_${teamId}`, id), data);
+                try {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', `reservations_${teamId}`, id), data);
+                } catch (e) { console.error(e); }
             };
             const handleDeleteReservation = async (id) => {
                 if (!confirm("¿Eliminar reserva?")) return;
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `reservations_${teamId}`, id));
+                try {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', `reservations_${teamId}`, id));
+                } catch (e) { alert("Error al borrar: " + e.message); }
             };
-
             const handleSaveAccounting = async (data) => {
                 if (!user || !teamId || !selectedEventId) return;
-                const docRef = doc(db, 'artifacts', appId, 'public', 'data', `accounting_${teamId}`, selectedEventId);
-                await setDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+                try {
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', `accounting_${teamId}`, selectedEventId);
+                    await setDoc(docRef, { ...data, updatedAt: serverTimestamp() });
+                } catch (e) { alert("Error al guardar contabilidad: " + e.message); }
             };
 
             if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-500">Cargando...</div>;
@@ -236,60 +238,24 @@
                         <div className="max-w-3xl mx-auto flex items-center justify-between">
                             <div className="flex items-center gap-2 overflow-hidden">
                                 {view !== 'events' && (
-                                    <button onClick={() => setView(view === 'accounting' ? 'detail' : 'events')} className="mr-2 p-1 hover:bg-indigo-600 rounded-full flex-shrink-0">
-                                        <ChevronLeft size={24} />
-                                    </button>
+                                    <button onClick={() => setView(view === 'accounting' ? 'detail' : 'events')} className="mr-2 p-1 hover:bg-indigo-600 rounded-full flex-shrink-0"><ChevronLeft size={24} /></button>
                                 )}
                                 <div className="overflow-hidden">
-                                    <h1 className="text-xl font-bold tracking-tight truncate">
-                                        {view === 'events' ? `Teatro: ${teamId}` : 
-                                         view === 'accounting' ? 'Contabilidad' :
-                                         currentEvent?.title || 'Detalle'}
-                                    </h1>
-                                    {view === 'detail' && currentEvent && (
-                                        <p className="text-xs text-indigo-200 flex gap-2 items-center">
-                                            <span>{currentEvent.date}</span>
-                                            {currentEvent.venue && <><span>•</span> <span>{currentEvent.venue}</span></>}
-                                        </p>
-                                    )}
+                                    <h1 className="text-xl font-bold tracking-tight truncate">{view === 'events' ? `Teatro: ${teamId}` : view === 'accounting' ? 'Contabilidad' : currentEvent?.title || 'Detalle'}</h1>
+                                    {view === 'detail' && currentEvent && <p className="text-xs text-indigo-200 flex gap-2 items-center"><span>{currentEvent.date}</span>{currentEvent.venue && <><span>•</span> <span>{currentEvent.venue}</span></>}</p>}
                                 </div>
                             </div>
-                            <button onClick={leaveTeam} className="ml-2 p-2 text-indigo-200 hover:text-white hover:bg-indigo-600 rounded-lg flex-shrink-0">
-                                <LogOut size={20} />
-                            </button>
+                            <button onClick={leaveTeam} className="ml-2 p-2 text-indigo-200 hover:text-white hover:bg-indigo-600 rounded-lg flex-shrink-0"><LogOut size={20} /></button>
                         </div>
                     </header>
-
                     <main className="max-w-3xl mx-auto p-4">
-                        {view === 'events' ? (
-                            <EventsView events={events} onCreate={handleCreateEvent} onSelect={(id) => { setSelectedEventId(id); setView('detail'); }} onDelete={handleDeleteEvent} />
-                        ) : view === 'accounting' ? (
-                            <AccountingView 
-                                event={currentEvent} 
-                                calculatedGrossIncome={stats.totalMoney}
-                                db={db}
-                                appId={appId}
-                                teamId={teamId}
-                                onSave={handleSaveAccounting}
-                            />
-                        ) : (
-                            <EventDetailView 
-                                event={currentEvent} 
-                                reservations={currentEventReservations}
-                                stats={stats}
-                                onAdd={handleAddReservation}
-                                onUpdate={handleUpdateReservation}
-                                onDelete={handleDeleteReservation}
-                                onGoAccounting={() => setView('accounting')}
-                            />
-                        )}
+                        {view === 'events' ? <EventsView events={events} onCreate={handleCreateEvent} onSelect={(id) => { setSelectedEventId(id); setView('detail'); }} onDelete={handleDeleteEvent} /> : view === 'accounting' ? <AccountingView event={currentEvent} calculatedGrossIncome={stats.totalMoney} db={db} appId={appId} teamId={teamId} onSave={handleSaveAccounting} /> : <EventDetailView event={currentEvent} reservations={currentEventReservations} stats={stats} onAdd={handleAddReservation} onUpdate={handleUpdateReservation} onDelete={handleDeleteReservation} onGoAccounting={() => setView('accounting')} />}
                     </main>
                 </div>
             );
         }
 
-        // --- SUBCOMPONENTES ---
-
+        // --- VISTAS ---
         function EventsView({ events, onCreate, onSelect, onDelete }) {
             const [showModal, setShowModal] = useState(false);
             return (
@@ -297,44 +263,10 @@
                     <div className="animate-fade-in">
                         <div className="flex justify-between items-center mb-6">
                             <h2 className="text-lg font-semibold text-slate-700">Próximas Funciones</h2>
-                            <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md hover:bg-indigo-700 active:scale-95 transition-all">
-                                <Plus size={18} /> Nueva Función
-                            </button>
+                            <button onClick={() => setShowModal(true)} className="bg-indigo-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-md hover:bg-indigo-700 active:scale-95 transition-all"><Plus size={18} /> Nueva Función</button>
                         </div>
-                        {events.length === 0 ? (
-                            <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200">
-                                <Calendar size={48} className="mx-auto text-slate-300 mb-4" />
-                                <p className="text-slate-500">No hay funciones en este equipo.</p>
-                                <p className="text-sm text-slate-400">Crea una para empezar.</p>
-                            </div>
-                        ) : (
-                            <div className="grid gap-4">
-                                {events.map(event => (
-                                    <div key={event.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative group">
-                                        <div onClick={() => onSelect(event.id)} className="cursor-pointer">
-                                            <div className="flex justify-between items-start mb-2">
-                                                <div>
-                                                    <h3 className="font-bold text-lg text-slate-800">{event.title}</h3>
-                                                    {event.venue && <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={10}/> {event.venue}</p>}
-                                                </div>
-                                                <span className={`text-xs px-2 py-1 rounded-full ${event.type === 'gorra' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>
-                                                    {event.type === 'gorra' ? 'A la Gorra' : 'Precio Fijo'}
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-4 text-sm text-slate-500 mt-2">
-                                                <span className="flex items-center gap-1"><Calendar size={14}/> {event.date}</span>
-                                                <span className="flex items-center gap-1"><Clock size={14}/> {event.time}</span>
-                                            </div>
-                                        </div>
-                                        <button onClick={(e) => { e.stopPropagation(); onDelete(event.id); }} className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all">
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+                        {events.length === 0 ? <div className="text-center py-12 bg-white rounded-xl shadow-sm border border-slate-200"><Calendar size={48} className="mx-auto text-slate-300 mb-4" /><p className="text-slate-500">No hay funciones en este equipo.</p><p className="text-sm text-slate-400">Crea una para empezar.</p></div> : <div className="grid gap-4">{events.map(event => (<div key={event.id} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow relative group"><div onClick={() => onSelect(event.id)} className="cursor-pointer"><div className="flex justify-between items-start mb-2"><div><h3 className="font-bold text-lg text-slate-800">{event.title}</h3>{event.venue && <p className="text-xs text-slate-500 flex items-center gap-1 mt-1"><MapPin size={10}/> {event.venue}</p>}</div><span className={`text-xs px-2 py-1 rounded-full ${event.type === 'gorra' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'}`}>{event.type === 'gorra' ? 'A la Gorra' : 'Precio Fijo'}</span></div><div className="flex items-center gap-4 text-sm text-slate-500 mt-2"><span className="flex items-center gap-1"><Calendar size={14}/> {event.date}</span><span className="flex items-center gap-1"><Clock size={14}/> {event.time}</span></div></div><button onClick={(e) => { e.stopPropagation(); onDelete(event.id); }} className="absolute top-4 right-4 p-2 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button></div>))}</div>}
                     </div>
-                    {/* MODAL FUERA DEL CONTENEDOR ANIMADO */}
                     {showModal && <CreateEventModal onClose={() => setShowModal(false)} onCreate={onCreate} />}
                 </>
             );
@@ -344,17 +276,11 @@
             const [showAddModal, setShowAddModal] = useState(false);
             const [searchTerm, setSearchTerm] = useState("");
             const filteredReservations = reservations.filter(r => r.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
             const copyList = () => {
                 const text = `Lista para ${event.title}:\n\n` + reservations.map(r => `- ${r.name} (+${r.guests}) ${r.note ? `[${r.note}]` : ''} ${r.checkIn ? '✅' : ''}`).join('\n');
-                const textArea = document.createElement("textarea");
-                textArea.value = text;
-                document.body.appendChild(textArea);
-                textArea.select();
-                try { document.execCommand('copy'); alert("Lista copiada"); } catch (e) {}
-                document.body.removeChild(textArea);
+                const textArea = document.createElement("textarea"); textArea.value = text; document.body.appendChild(textArea); textArea.select();
+                try { document.execCommand('copy'); alert("Lista copiada"); } catch (e) {} document.body.removeChild(textArea);
             };
-
             const capacity = parseInt(event.capacity) || 0;
             const occupancy = capacity > 0 ? Math.min(100, (stats.totalPax / capacity) * 100) : 0;
             const occupancyColor = occupancy > 90 ? 'bg-red-500' : occupancy > 70 ? 'bg-amber-500' : 'bg-emerald-500';
@@ -363,126 +289,53 @@
                 <>
                     <div className="animate-fade-in">
                         <div className="mb-4 flex justify-between items-center">
-                            <div className="flex-1 mr-4">
-                                {capacity > 0 && (
-                                    <div className="bg-slate-200 h-2 rounded-full overflow-hidden w-full max-w-xs">
-                                        <div className={`h-full ${occupancyColor} transition-all duration-500`} style={{width: `${occupancy}%`}}></div>
-                                    </div>
-                                )}
-                                {capacity > 0 && (
-                                    <p className="text-xs text-slate-500 mt-1">
-                                        {stats.totalPax} / {capacity} butacas ({Math.round(occupancy)}%)
-                                    </p>
-                                )}
-                            </div>
-                            <button onClick={onGoAccounting} className="flex items-center gap-2 bg-emerald-100 text-emerald-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-200 transition-colors">
-                                <Calculator size={16} /> Contabilidad
-                            </button>
+                            <div className="flex-1 mr-4">{capacity > 0 && (<div className="bg-slate-200 h-2 rounded-full overflow-hidden w-full max-w-xs"><div className={`h-full ${occupancyColor} transition-all duration-500`} style={{width: `${occupancy}%`}}></div></div>)}{capacity > 0 && (<p className="text-xs text-slate-500 mt-1">{stats.totalPax} / {capacity} butacas ({Math.round(occupancy)}%)</p>)}</div>
+                            <button onClick={onGoAccounting} className="flex items-center gap-2 bg-emerald-100 text-emerald-800 px-4 py-2 rounded-lg text-sm font-bold hover:bg-emerald-200 transition-colors"><Calculator size={16} /> Contabilidad</button>
                         </div>
-
                         <div className="grid grid-cols-3 gap-3 mb-6">
-                            <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-center">
-                                <p className="text-xs text-slate-500 uppercase font-bold">Total Pax</p>
-                                <p className="text-2xl font-bold text-indigo-600">{stats.totalPax}</p>
-                            </div>
-                            <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-center">
-                                <p className="text-xs text-slate-500 uppercase font-bold">En Sala</p>
-                                <p className="text-2xl font-bold text-emerald-600">{stats.checkedInPax}</p>
-                            </div>
-                            <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-center">
-                                <p className="text-xs text-slate-500 uppercase font-bold">Caja</p>
-                                <p className="text-2xl font-bold text-slate-700">${stats.totalMoney}</p>
-                            </div>
+                            <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-center"><p className="text-xs text-slate-500 uppercase font-bold">Total Pax</p><p className="text-2xl font-bold text-indigo-600">{stats.totalPax}</p></div>
+                            <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-center"><p className="text-xs text-slate-500 uppercase font-bold">En Sala</p><p className="text-2xl font-bold text-emerald-600">{stats.checkedInPax}</p></div>
+                            <div className="bg-white p-3 rounded-lg shadow-sm border border-slate-200 text-center"><p className="text-xs text-slate-500 uppercase font-bold">Caja</p><p className="text-2xl font-bold text-slate-700">${stats.totalMoney}</p></div>
                         </div>
                         <div className="flex gap-2 mb-4">
-                            <div className="relative flex-1">
-                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                                <input type="text" placeholder="Buscar nombre..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-                            </div>
+                            <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} /><input type="text" placeholder="Buscar nombre..." className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
                             <button onClick={copyList} className="bg-white text-slate-600 px-3 rounded-lg border border-slate-200 hover:bg-slate-50"><Copy size={20} /></button>
                         </div>
                         <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mb-20">
-                            {filteredReservations.length === 0 ? (
-                                <div className="p-8 text-center text-slate-500">{searchTerm ? 'No encontrado.' : 'Sin reservas.'}</div>
-                            ) : (
-                                <ul className="divide-y divide-slate-100">
-                                    {filteredReservations.map(res => <ReservationRow key={res.id} reservation={res} eventType={event.type} onUpdate={onUpdate} onDelete={onDelete} />)}
-                                </ul>
-                            )}
+                            {filteredReservations.length === 0 ? <div className="p-8 text-center text-slate-500">{searchTerm ? 'No encontrado.' : 'Sin reservas.'}</div> : <ul className="divide-y divide-slate-100">{filteredReservations.map(res => <ReservationRow key={res.id} reservation={res} eventType={event.type} onUpdate={onUpdate} onDelete={onDelete} />)}</ul>}
                         </div>
-                        <button onClick={() => setShowAddModal(true)} className="fixed bottom-6 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all z-40">
-                            <Plus size={28} />
-                        </button>
+                        <button onClick={() => setShowAddModal(true)} className="fixed bottom-6 right-6 bg-indigo-600 text-white p-4 rounded-full shadow-lg hover:bg-indigo-700 hover:scale-105 active:scale-95 transition-all z-40"><Plus size={28} /></button>
                     </div>
-                    {/* MODAL FUERA DEL CONTENEDOR ANIMADO */}
                     {showAddModal && <AddReservationModal eventType={event.type} onClose={() => setShowAddModal(false)} onAdd={onAdd} />}
                 </>
             );
         }
 
-        // --- SUBCOMPONENTES DE RESERVA Y CONTABILIDAD (Mismos de antes) ---
         function ReservationRow({ reservation, eventType, onUpdate, onDelete }) {
             const [isEditing, setIsEditing] = useState(false);
             const [editAmount, setEditAmount] = useState(reservation.amountPaid || 0);
             const [showNote, setShowNote] = useState(false);
             const totalPax = 1 + parseInt(reservation.guests);
             const saveAmount = () => { onUpdate(reservation.id, { amountPaid: parseFloat(editAmount) }); setIsEditing(false); };
-
             return (
                 <li className={`p-4 ${reservation.checkIn ? 'bg-emerald-50/50' : ''}`}>
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 flex-1">
-                            <button onClick={() => onUpdate(reservation.id, { checkIn: !reservation.checkIn })} className={`p-2 rounded-full transition-colors ${reservation.checkIn ? 'text-emerald-600 bg-emerald-100' : 'text-slate-300 hover:bg-slate-100'}`}>
-                                <CheckCircle size={24} />
-                            </button>
+                            <button onClick={() => onUpdate(reservation.id, { checkIn: !reservation.checkIn })} className={`p-2 rounded-full transition-colors ${reservation.checkIn ? 'text-emerald-600 bg-emerald-100' : 'text-slate-300 hover:bg-slate-100'}`}><CheckCircle size={24} /></button>
                             <div className="flex-1">
-                                <div className="font-medium text-slate-800 text-lg leading-tight flex items-center gap-2">
-                                    {reservation.name}
-                                    {reservation.guests > 0 && <span className="text-sm font-normal text-slate-500">+{reservation.guests}</span>}
-                                    {reservation.note && (
-                                        <button onClick={() => setShowNote(!showNote)} className="text-indigo-400 hover:text-indigo-600">
-                                            <MessageSquare size={16} fill={showNote ? "currentColor" : "none"}/>
-                                        </button>
-                                    )}
-                                </div>
-                                <div className="text-xs text-slate-500 mt-1 flex items-center gap-2">
-                                    <span className="flex items-center gap-1"><Users size={12} /> {totalPax}</span>
-                                    <span>•</span>
-                                    {isEditing ? (
-                                        <div className="flex items-center gap-1">
-                                            <input type="number" className="w-16 px-1 border rounded text-xs" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} autoFocus />
-                                            <button onClick={saveAmount} className="text-emerald-600 font-bold">OK</button>
-                                        </div>
-                                    ) : (
-                                        <button onClick={() => setIsEditing(true)} className="flex items-center gap-1 hover:text-indigo-600 transition-colors">
-                                            <span className={reservation.amountPaid > 0 ? "text-emerald-600 font-medium" : "text-slate-400"}>
-                                                {reservation.amountPaid > 0 ? `$${reservation.amountPaid}` : 'Sin pago'}
-                                            </span>
-                                            <Edit2 size={10} />
-                                        </button>
-                                    )}
-                                </div>
+                                <div className="font-medium text-slate-800 text-lg leading-tight flex items-center gap-2">{reservation.name}{reservation.guests > 0 && <span className="text-sm font-normal text-slate-500">+{reservation.guests}</span>}{reservation.note && (<button onClick={() => setShowNote(!showNote)} className="text-indigo-400 hover:text-indigo-600"><MessageSquare size={16} fill={showNote ? "currentColor" : "none"}/></button>)}</div>
+                                <div className="text-xs text-slate-500 mt-1 flex items-center gap-2"><span className="flex items-center gap-1"><Users size={12} /> {totalPax}</span><span>•</span>{isEditing ? (<div className="flex items-center gap-1"><input type="number" className="w-16 px-1 border rounded text-xs" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} autoFocus /><button onClick={saveAmount} className="text-emerald-600 font-bold">OK</button></div>) : (<button onClick={() => setIsEditing(true)} className="flex items-center gap-1 hover:text-indigo-600 transition-colors"><span className={reservation.amountPaid > 0 ? "text-emerald-600 font-medium" : "text-slate-400"}>{reservation.amountPaid > 0 ? `$${reservation.amountPaid}` : 'Sin pago'}</span><Edit2 size={10} /></button>)}</div>
                             </div>
                         </div>
                         <button onClick={() => onDelete(reservation.id)} className="p-2 text-slate-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                     </div>
-                    {showNote && reservation.note && (
-                        <div className="mt-2 ml-12 text-sm text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                            {reservation.note}
-                        </div>
-                    )}
+                    {showNote && reservation.note && <div className="mt-2 ml-12 text-sm text-slate-600 bg-slate-50 p-2 rounded-lg border border-slate-100">{reservation.note}</div>}
                 </li>
             );
         }
 
-        // --- ACCOUNTING VIEW (Misma de antes) ---
         function AccountingView({ event, calculatedGrossIncome, db, appId, teamId, onSave }) {
-            const [data, setData] = useState({
-                manualGrossIncome: null,
-                roomPercentage: 30,
-                expenses: [{ id: 1, label: 'Gastos de Producción', amount: 0 }],
-                participants: []
-            });
+            const [data, setData] = useState({ manualGrossIncome: null, roomPercentage: 30, expenses: [{ id: 1, label: 'Gastos de Producción', amount: 0 }], participants: [] });
             const [loading, setLoading] = useState(true);
 
             useEffect(() => {
@@ -490,9 +343,8 @@
                     try {
                         const docRef = doc(db, 'artifacts', appId, 'public', 'data', `accounting_${teamId}`, event.id);
                         const docSnap = await getDoc(docRef);
-                        if (docSnap.exists()) {
-                            setData(docSnap.data());
-                        } else {
+                        if (docSnap.exists()) { setData(docSnap.data()); } 
+                        else {
                             const baseId = Date.now();
                             setData(prev => ({ ...prev, participants: [
                                 { id: baseId, role: 'Producción', name: '', points: '1', accepts: true },
@@ -511,28 +363,19 @@
                 load();
             }, [event.id]);
 
-            const effectiveGrossIncome = data.manualGrossIncome !== null && data.manualGrossIncome !== undefined 
-                ? parseFloat(data.manualGrossIncome) 
-                : calculatedGrossIncome;
-
+            const effectiveGrossIncome = data.manualGrossIncome !== null && data.manualGrossIncome !== undefined ? parseFloat(data.manualGrossIncome) : calculatedGrossIncome;
             const totalExpensesSum = data.expenses.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
             const roomDeduction = (effectiveGrossIncome * data.roomPercentage) / 100;
             const netIncome = effectiveGrossIncome - roomDeduction - totalExpensesSum;
-
-            const totalPoints = data.participants
-                .filter(p => p.accepts)
-                .reduce((sum, p) => sum + (parseFloat(p.points) || 0), 0);
-            
+            const totalPoints = data.participants.filter(p => p.accepts).reduce((sum, p) => sum + (parseFloat(p.points) || 0), 0);
             const pointValue = totalPoints > 0 ? (Math.max(0, netIncome) / totalPoints) : 0;
 
             const addExpense = () => setData(prev => ({ ...prev, expenses: [...prev.expenses, { id: Date.now(), label: '', amount: 0 }] }));
             const removeExpense = (id) => setData(prev => ({ ...prev, expenses: prev.expenses.filter(e => e.id !== id) }));
             const updateExpense = (id, field, val) => setData(prev => ({ ...prev, expenses: prev.expenses.map(e => e.id === id ? { ...e, [field]: val } : e) }));
-
             const addParticipant = () => setData(prev => ({ ...prev, participants: [...prev.participants, { id: Date.now(), role: '', name: '', points: '1', accepts: true }] }));
             const removeParticipant = (id) => setData(prev => ({ ...prev, participants: prev.participants.filter(p => p.id !== id) }));
             const updateParticipant = (id, field, val) => setData(prev => ({ ...prev, participants: prev.participants.map(p => p.id === id ? { ...p, [field]: val } : p) }));
-            
             const save = () => { onSave(data); alert("Contabilidad guardada correctamente"); };
 
             if (loading) return <div className="p-4 text-center">Cargando contabilidad...</div>;
@@ -542,160 +385,33 @@
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                         <div className="bg-slate-50 p-3 border-b border-slate-200 font-bold text-slate-700">Resumen Financiero</div>
                         <div className="p-4 space-y-2">
-                            <div className="flex justify-between items-center text-lg mb-2">
-                                <span>Recaudación Total</span>
-                                <div className="flex items-center gap-2">
-                                    <span className="text-slate-400 text-sm font-normal mr-2">
-                                        {data.manualGrossIncome === null ? '(Auto: Reservas)' : '(Manual)'}
-                                    </span>
-                                    <div className="relative">
-                                        <span className="absolute left-2 top-1/2 -translate-y-1/2 text-green-700 font-bold">$</span>
-                                        <input 
-                                            type="number" 
-                                            className="w-32 pl-6 pr-2 py-1 bg-green-50 border border-green-200 rounded-lg font-bold text-green-700 text-right outline-none focus:ring-2 focus:ring-green-500"
-                                            value={effectiveGrossIncome}
-                                            onChange={(e) => setData({...data, manualGrossIncome: parseFloat(e.target.value) || 0})}
-                                            placeholder="0"
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="text-xs text-slate-400 mb-4 text-right">
-                                {data.manualGrossIncome === null ? 
-                                    "Sumando pagos individuales de reservas." : 
-                                    "Monto manual ingresado (ignorando reservas)."}
-                                {data.manualGrossIncome !== null && (
-                                    <button onClick={() => setData({...data, manualGrossIncome: null})} className="ml-2 text-indigo-600 hover:underline">Restaurar automático</button>
-                                )}
-                            </div>
-
-                            <div className="flex justify-between items-center text-red-600 text-sm">
-                                <div className="flex items-center gap-2">
-                                    <span>(-) Sala</span>
-                                    <div className="flex items-center bg-red-50 rounded px-1">
-                                        <input type="number" className="w-8 text-center bg-transparent outline-none" value={data.roomPercentage} onChange={(e) => setData({...data, roomPercentage: parseFloat(e.target.value) || 0})} />
-                                        <span>%</span>
-                                    </div>
-                                </div>
-                                <span>- ${roomDeduction.toLocaleString()}</span>
-                            </div>
-                            {data.expenses.map(exp => (
-                                <div key={exp.id} className="flex gap-2 text-sm text-red-600 items-center">
-                                    <button onClick={() => removeExpense(exp.id)} className="text-slate-400 hover:text-red-500"><X size={14}/></button>
-                                    <input type="text" placeholder="Concepto" className="flex-1 border-b border-dotted border-red-200 outline-none text-slate-700" value={exp.label} onChange={(e) => updateExpense(exp.id, 'label', e.target.value)} />
-                                    <span className="text-slate-500">(-) $</span>
-                                    <input type="number" className="w-20 text-right border-b border-dotted border-red-200 outline-none font-medium" value={exp.amount} onChange={(e) => updateExpense(exp.id, 'amount', parseFloat(e.target.value) || 0)} />
-                                </div>
-                            ))}
+                            <div className="flex justify-between items-center text-lg mb-2"><span>Recaudación Total</span><div className="flex items-center gap-2"><span className="text-slate-400 text-sm font-normal mr-2">{data.manualGrossIncome === null ? '(Auto: Reservas)' : '(Manual)'}</span><div className="relative"><span className="absolute left-2 top-1/2 -translate-y-1/2 text-green-700 font-bold">$</span><input type="number" className="w-32 pl-6 pr-2 py-1 bg-green-50 border border-green-200 rounded-lg font-bold text-green-700 text-right outline-none focus:ring-2 focus:ring-green-500" value={effectiveGrossIncome} onChange={(e) => setData({...data, manualGrossIncome: parseFloat(e.target.value) || 0})} placeholder="0" /></div></div></div>
+                            <div className="text-xs text-slate-400 mb-4 text-right">{data.manualGrossIncome === null ? "Sumando pagos individuales de reservas." : "Monto manual ingresado (ignorando reservas)."}{data.manualGrossIncome !== null && (<button onClick={() => setData({...data, manualGrossIncome: null})} className="ml-2 text-indigo-600 hover:underline">Restaurar automático</button>)}</div>
+                            <div className="flex justify-between items-center text-red-600 text-sm"><div className="flex items-center gap-2"><span>(-) Sala</span><div className="flex items-center bg-red-50 rounded px-1"><input type="number" className="w-8 text-center bg-transparent outline-none" value={data.roomPercentage} onChange={(e) => setData({...data, roomPercentage: parseFloat(e.target.value) || 0})} /><span>%</span></div></div><span>- ${roomDeduction.toLocaleString()}</span></div>
+                            {data.expenses.map(exp => (<div key={exp.id} className="flex gap-2 text-sm text-red-600 items-center"><button onClick={() => removeExpense(exp.id)} className="text-slate-400 hover:text-red-500"><X size={14}/></button><input type="text" placeholder="Concepto" className="flex-1 border-b border-dotted border-red-200 outline-none text-slate-700" value={exp.label} onChange={(e) => updateExpense(exp.id, 'label', e.target.value)} /><span className="text-slate-500">(-) $</span><input type="number" className="w-20 text-right border-b border-dotted border-red-200 outline-none font-medium" value={exp.amount} onChange={(e) => updateExpense(exp.id, 'amount', parseFloat(e.target.value) || 0)} /></div>))}
                             <button onClick={addExpense} className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1 mt-1"><Plus size={12}/> Agregar gasto</button>
-                            <div className="border-t pt-2 mt-2 flex justify-between items-center font-bold text-xl">
-                                <span>Ganancia Neta</span>
-                                <span className={netIncome >= 0 ? "text-slate-800" : "text-red-600"}>${netIncome.toLocaleString()}</span>
-                            </div>
+                            <div className="border-t pt-2 mt-2 flex justify-between items-center font-bold text-xl"><span>Ganancia Neta</span><span className={netIncome >= 0 ? "text-slate-800" : "text-red-600"}>${netIncome.toLocaleString()}</span></div>
                         </div>
                     </div>
-
                     <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                        <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center">
-                            <span className="font-bold text-slate-700">Reparto por Puntos</span>
-                            <div className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">
-                                Valor Pto: <b>${pointValue.toFixed(2)}</b>
-                            </div>
-                        </div>
+                        <div className="bg-slate-50 p-3 border-b border-slate-200 flex justify-between items-center"><span className="font-bold text-slate-700">Reparto por Puntos</span><div className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded">Valor Pto: <b>${pointValue.toFixed(2)}</b></div></div>
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm text-left">
-                                <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b">
-                                    <tr>
-                                        <th className="px-3 py-2 w-8"></th>
-                                        <th className="px-3 py-2">Rol / Nombre</th>
-                                        <th className="px-3 py-2 w-16 text-center">Pts</th>
-                                        <th className="px-3 py-2 w-16 text-center">Cobra</th>
-                                        <th className="px-3 py-2 text-right">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100">
-                                    {data.participants.map(p => {
-                                        const payment = p.accepts ? ((parseFloat(p.points) || 0) * pointValue) : 0;
-                                        return (
-                                            <tr key={p.id} className={!p.accepts ? 'bg-slate-50 opacity-60' : ''}>
-                                                <td className="pl-2">
-                                                    <button onClick={() => removeParticipant(p.id)} className="text-slate-300 hover:text-red-500"><X size={16}/></button>
-                                                </td>
-                                                <td className="px-2 py-2">
-                                                    <input type="text" placeholder="Rol" className="w-full text-xs font-bold text-slate-700 outline-none mb-1" value={p.role} onChange={(e) => updateParticipant(p.id, 'role', e.target.value)} />
-                                                    <input type="text" placeholder="Nombre" className="w-full text-slate-600 outline-none" value={p.name} onChange={(e) => updateParticipant(p.id, 'name', e.target.value)} />
-                                                </td>
-                                                <td className="px-1 py-2 text-center">
-                                                    <input type="number" step="0.1" className="w-12 text-center border rounded p-1" value={p.points} onChange={(e) => updateParticipant(p.id, 'points', e.target.value)} />
-                                                </td>
-                                                <td className="px-1 py-2 text-center">
-                                                    <input type="checkbox" checked={p.accepts} onChange={(e) => updateParticipant(p.id, 'accepts', e.target.checked)} className="w-4 h-4 accent-indigo-600" />
-                                                </td>
-                                                <td className="px-3 py-2 text-right font-medium text-emerald-600">${Math.round(payment).toLocaleString()}</td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
+                            <table className="w-full text-sm text-left"><thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b"><tr><th className="px-3 py-2 w-8"></th><th className="px-3 py-2">Rol / Nombre</th><th className="px-3 py-2 w-16 text-center">Pts</th><th className="px-3 py-2 w-16 text-center">Cobra</th><th className="px-3 py-2 text-right">Total</th></tr></thead><tbody className="divide-y divide-slate-100">{data.participants.map(p => { const payment = p.accepts ? ((parseFloat(p.points) || 0) * pointValue) : 0; return (<tr key={p.id} className={!p.accepts ? 'bg-slate-50 opacity-60' : ''}><td className="pl-2"><button onClick={() => removeParticipant(p.id)} className="text-slate-300 hover:text-red-500"><X size={16}/></button></td><td className="px-2 py-2"><input type="text" placeholder="Rol" className="w-full text-xs font-bold text-slate-700 outline-none mb-1" value={p.role} onChange={(e) => updateParticipant(p.id, 'role', e.target.value)} /><input type="text" placeholder="Nombre" className="w-full text-slate-600 outline-none" value={p.name} onChange={(e) => updateParticipant(p.id, 'name', e.target.value)} /></td><td className="px-1 py-2 text-center"><input type="number" step="0.1" className="w-12 text-center border rounded p-1" value={p.points} onChange={(e) => updateParticipant(p.id, 'points', e.target.value)} /></td><td className="px-1 py-2 text-center"><input type="checkbox" checked={p.accepts} onChange={(e) => updateParticipant(p.id, 'accepts', e.target.checked)} className="w-4 h-4 accent-indigo-600" /></td><td className="px-3 py-2 text-right font-medium text-emerald-600">${Math.round(payment).toLocaleString()}</td></tr>); })}</tbody></table>
                         </div>
-                        <div className="p-3 bg-slate-50 border-t">
-                            <button onClick={addParticipant} className="w-full py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2">
-                                <Plus size={16}/> Agregar Integrante
-                            </button>
-                        </div>
+                        <div className="p-3 bg-slate-50 border-t"><button onClick={addParticipant} className="w-full py-2 border-2 border-dashed border-slate-300 text-slate-500 rounded-lg hover:border-indigo-400 hover:text-indigo-600 transition-colors flex items-center justify-center gap-2"><Plus size={16}/> Agregar Integrante</button></div>
                     </div>
                     <button onClick={save} className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">Guardar Contabilidad</button>
                 </div>
             );
         }
 
-        // --- MODALES (Z-INDEX 100 y FUERA DEL FLUJO ANIMADO) ---
+        // --- MODALES ---
         function CreateEventModal({ onClose, onCreate }) {
             const [formData, setFormData] = useState({ title: '', venue: '', capacity: '', date: '', time: '20:00', type: 'gorra' });
             const handleSubmit = (e) => { e.preventDefault(); if (!formData.title || !formData.date) return; onCreate(formData); onClose(); };
-
             return (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold">Nueva Función</h3>
-                            <button onClick={onClose}><X size={20} className="text-slate-400"/></button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Título</label>
-                                <input type="text" placeholder="Ej: Hamlet" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} autoFocus />
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Sala</label>
-                                    <input type="text" placeholder="Abasto" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.venue} onChange={e => setFormData({...formData, venue: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Capac.</label>
-                                    <input type="number" placeholder="100" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.capacity} onChange={e => setFormData({...formData, capacity: e.target.value})} />
-                                </div>
-                            </div>
-                            <div className="grid grid-cols-2 gap-3">
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label>
-                                    <input type="date" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Hora</label>
-                                    <input type="time" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Tipo de cobro</label>
-                                <div className="grid grid-cols-2 gap-2">
-                                    <button type="button" className={`p-2 rounded-lg border text-sm font-medium ${formData.type === 'gorra' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200'}`} onClick={() => setFormData({...formData, type: 'gorra'})}>🎩 A la gorra</button>
-                                    <button type="button" className={`p-2 rounded-lg border text-sm font-medium ${formData.type === 'fixed' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200'}`} onClick={() => setFormData({...formData, type: 'fixed'})}>🎫 Entrada Fija</button>
-                                </div>
-                            </div>
-                            <button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">Crear</button>
-                        </form>
-                    </div>
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative"><div className="flex justify-between items-center mb-4"><h3 className="text-xl font-bold">Nueva Función</h3><button onClick={onClose}><X size={20} className="text-slate-400"/></button></div><form onSubmit={handleSubmit} className="space-y-4"><div><label className="block text-sm font-medium text-slate-700 mb-1">Título</label><input type="text" placeholder="Ej: Hamlet" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} autoFocus /></div><div className="grid grid-cols-3 gap-2"><div className="col-span-2"><label className="block text-sm font-medium text-slate-700 mb-1">Sala</label><input type="text" placeholder="Abasto" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.venue} onChange={e => setFormData({...formData, venue: e.target.value})} /></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Capac.</label><input type="number" placeholder="100" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.capacity} onChange={e => setFormData({...formData, capacity: e.target.value})} /></div></div><div className="grid grid-cols-2 gap-3"><div><label className="block text-sm font-medium text-slate-700 mb-1">Fecha</label><input type="date" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} /></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Hora</label><input type="time" className="w-full border border-slate-300 rounded-lg p-2 outline-none" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} /></div></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Tipo de cobro</label><div className="grid grid-cols-2 gap-2"><button type="button" className={`p-2 rounded-lg border text-sm font-medium ${formData.type === 'gorra' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200'}`} onClick={() => setFormData({...formData, type: 'gorra'})}>🎩 A la gorra</button><button type="button" className={`p-2 rounded-lg border text-sm font-medium ${formData.type === 'fixed' ? 'border-indigo-600 bg-indigo-50 text-indigo-700' : 'border-slate-200'}`} onClick={() => setFormData({...formData, type: 'fixed'})}>🎫 Entrada Fija</button></div></div><button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700">Crear</button></form></div>
                 </div>
             );
         }
@@ -703,43 +419,9 @@
         function AddReservationModal({ eventType, onClose, onAdd }) {
             const [formData, setFormData] = useState({ name: '', guests: 0, amountPaid: 0, note: '' });
             const handleSubmit = (e) => { e.preventDefault(); if (!formData.name) return; onAdd(formData); onClose(); };
-
             return (
                 <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[100] animate-in fade-in duration-200">
-                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="text-xl font-bold">Nueva Reserva</h3>
-                            <button onClick={onClose}><X size={20} className="text-slate-400"/></button>
-                        </div>
-                        <form onSubmit={handleSubmit} className="space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Nombre y Apellido</label>
-                                <input type="text" placeholder="Juan Pérez" className="w-full border border-slate-300 rounded-lg p-2 outline-none text-lg" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} autoFocus />
-                            </div>
-                            <div className="flex items-center gap-4">
-                                <div className="flex-1">
-                                    <label className="block text-sm font-medium text-slate-700 mb-1">Acompañantes (+)</label>
-                                    <div className="flex items-center border border-slate-300 rounded-lg overflow-hidden">
-                                        <button type="button" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border-r" onClick={() => setFormData(prev => ({...prev, guests: Math.max(0, prev.guests - 1)}))}>-</button>
-                                        <input type="number" className="w-full p-2 text-center outline-none" value={formData.guests} onChange={e => setFormData({...formData, guests: parseInt(e.target.value) || 0})} />
-                                        <button type="button" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border-l" onClick={() => setFormData(prev => ({...prev, guests: prev.guests + 1}))}>+</button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">Notas / Teléfono / Pedidos</label>
-                                <textarea rows="2" placeholder="Ej: Necesita silla de ruedas..." className="w-full border border-slate-300 rounded-lg p-2 outline-none resize-none" value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})}></textarea>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-slate-700 mb-1">{eventType === 'gorra' ? 'Colaboración (opcional)' : 'Pago realizado'}</label>
-                                <div className="relative">
-                                    <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                                    <input type="number" placeholder="0" className="w-full pl-9 border border-slate-300 rounded-lg p-2 outline-none" value={formData.amountPaid === 0 ? '' : formData.amountPaid} onChange={e => setFormData({...formData, amountPaid: parseFloat(e.target.value) || 0})} />
-                                </div>
-                            </div>
-                            <button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md">Guardar Reserva</button>
-                        </form>
-                    </div>
+                    <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl relative"><div className="flex justify-between items-center mb-4"><h3 className="text-xl font-bold">Nueva Reserva</h3><button onClick={onClose}><X size={20} className="text-slate-400"/></button></div><form onSubmit={handleSubmit} className="space-y-4"><div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre y Apellido</label><input type="text" placeholder="Juan Pérez" className="w-full border border-slate-300 rounded-lg p-2 outline-none text-lg" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} autoFocus /></div><div className="flex items-center gap-4"><div className="flex-1"><label className="block text-sm font-medium text-slate-700 mb-1">Acompañantes (+)</label><div className="flex items-center border border-slate-300 rounded-lg overflow-hidden"><button type="button" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border-r" onClick={() => setFormData(prev => ({...prev, guests: Math.max(0, prev.guests - 1)}))}>-</button><input type="number" className="w-full p-2 text-center outline-none" value={formData.guests} onChange={e => setFormData({...formData, guests: parseInt(e.target.value) || 0})} /><button type="button" className="px-3 py-2 bg-slate-50 hover:bg-slate-100 border-l" onClick={() => setFormData(prev => ({...prev, guests: prev.guests + 1}))}>+</button></div></div></div><div><label className="block text-sm font-medium text-slate-700 mb-1">Notas / Teléfono / Pedidos</label><textarea rows="2" placeholder="Ej: Necesita silla de ruedas..." className="w-full border border-slate-300 rounded-lg p-2 outline-none resize-none" value={formData.note} onChange={e => setFormData({...formData, note: e.target.value})}></textarea></div><div><label className="block text-sm font-medium text-slate-700 mb-1">{eventType === 'gorra' ? 'Colaboración (opcional)' : 'Pago realizado'}</label><div className="relative"><DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} /><input type="number" placeholder="0" className="w-full pl-9 border border-slate-300 rounded-lg p-2 outline-none" value={formData.amountPaid === 0 ? '' : formData.amountPaid} onChange={e => setFormData({...formData, amountPaid: parseFloat(e.target.value) || 0})} /></div></div><button type="submit" className="w-full py-3 bg-indigo-600 text-white font-bold rounded-lg hover:bg-indigo-700 shadow-md">Guardar Reserva</button></form></div>
                 </div>
             );
         }
