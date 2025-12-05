@@ -45,10 +45,9 @@
         } from 'https://esm.sh/lucide-react@0.330.0?dev&external=react';
 
         // ---------------------------------------------------------
-        // --- CONFIGURACIÓN DE FIREBASE (CORREGIDA) ---
-        // Se corrigió el caracter 'O' por '0' en la API Key
+        // --- CONFIGURACIÓN DE FIREBASE (ACTUALIZADA) ---
         const firebaseConfig = {
-            apiKey: "AIzaSyC4SX0foYz0Q58H6-9FSbVVhwTMNDP2Qb8",
+            apiKey: "AIzaSyC4SX0foYzOQ58H6-9FSbVVhwTMNDP2Qb8",
             authDomain: "reservasteatro-acf26.firebaseapp.com",
             projectId: "reservasteatro-acf26",
             storageBucket: "reservasteatro-acf26.firebasestorage.app",
@@ -138,7 +137,9 @@
                     catch (error) { 
                         console.error("Error Auth:", error); 
                         if(error.code === 'auth/operation-not-allowed') {
-                            alert("¡Falta activar 'Anónimo' en Firebase Authentication!");
+                            alert("¡Falta activar 'Anónimo' en Firebase Authentication! Ve a la consola -> Build -> Authentication -> Sign-in method.");
+                        } else {
+                            alert("Error de autenticación: " + error.message);
                         }
                     }
                 };
@@ -158,7 +159,7 @@
                     setEvents(data);
                 }, (error) => {
                     console.error(error);
-                    if (error.code === 'permission-denied') alert("Permiso denegado: Revisa las Reglas en Firebase Console.");
+                    if (error.code === 'permission-denied') alert("Permiso denegado: Revisa las Reglas en Firebase Console (Firestore -> Reglas).");
                 });
 
                 const unsubReservations = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', reservationsCollectionName), (snapshot) => {
